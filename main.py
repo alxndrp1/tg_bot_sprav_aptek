@@ -5,6 +5,7 @@ import argparse
 import pandas as pd
 import time
 import requests
+import re
 from bs4 import BeautifulSoup
 
 parser = argparse.ArgumentParser()
@@ -15,7 +16,7 @@ bot = telebot.TeleBot(args.bot_token)
 
 @bot.message_handler(commands=['start'])
 def start_message(message):		
-    bot.send_message(message.chat.id, "<b>Введите названиие лекарства.</b> Так же можно ввести название лекартсва и число для ограничения количества выдавыемых результатов. Пример: Анальгин 8. Ограничить вывод результатов до 8. Значение по умолчанию 20.", parse_mode='html')
+    bot.send_message(message.chat.id, "<b>Введите названиие лекарства.</b> Так же можно ввести название лекартсва и число для ограничения количества выдавыемых результатов. Пример: Анальгин 8. Ограничить вывод результатов до 8. Значение по умолчанию 10.", parse_mode='html')
     tg_analytic.statistics(message.chat.id, message.text)
 
 @bot.message_handler(content_types=['text'])
@@ -58,18 +59,41 @@ def send_text(message):
 		return
 	
 	headers = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36'}
-	r = requests.get('http://ref003.ru/index.php/search?type_drugname=torg&drugname='+message.text.split()[0]+'&drugname_id=&city_id=0&area_id=0', headers=headers, timeout=5)
+	str_rec = ""
+	stop = 10	
+	if message.text.split()[-1].isdigit():
+		stop = int(message.text.split()[-1])
+		str_re = re.sub("[0-9]", "", message.text)
+		str_split = str_re.split()
+		if len(str_split) > 1:
+			str_sum = ""
+			for s in str_split:
+				str_sum += s + '+'
+			str_sum = str_sum[:-1]
+			str_rec = 'http://ref003.ru/index.php/search?type_drugname=torg&drugname='+str_sum+'&drugname_id=&city_id=0&area_id=0'
+		else:
+			str_re = str_re[:-1]
+			str_rec = 'http://ref003.ru/index.php/search?type_drugname=torg&drugname='+str_re+'&drugname_id=&city_id=0&area_id=0'
+	else:
+		str_split = message.text.split()
+		if len(str_split) > 1:
+			str_sum = ""
+			for s in str_split:
+				str_sum += s + '+'
+			str_sum = str_sum[:-1]
+			str_rec = 'http://ref003.ru/index.php/search?type_drugname=torg&drugname='+str_sum+'&drugname_id=&city_id=0&area_id=0'
+		else:
+			str_rec = 'http://ref003.ru/index.php/search?type_drugname=torg&drugname='+message.text+'&drugname_id=&city_id=0&area_id=0'
+	
+	try:
+		r = requests.get(str_rec, headers=headers, timeout=5)
+	except:
+		pass
 	soup = BeautifulSoup(r.content, 'html.parser')
 	table = soup.find('table')
 	bot.send_message(message.chat.id, "<b>Результаты поиска:</b>", parse_mode='html')
 	mstr = ""
-	i = 1
-	stop = 20
-	try:
-		if int(message.text.split()[1]):
-			stop = int(message.text.split()[1])
-	except:
-		pass
+	i = 1	
 	for row in table.find_all('tr'):
 	   	i += 1
 	   	if not i % 10:
@@ -87,30 +111,5 @@ def send_text(message):
    			mstr += "<b>Адрес: </b>" + columns[3].text.strip()	+ "\n"
    			mstr += "<b>Цена: </b>" + columns[4].text.strip()	+ "\n"
    			bot.send_message(message.chat.id, mstr, parse_mode='html')
-
-		# try:
-		# 	bot.send_message(message.chat.id, mstr, parse_mode='html')
-		# except:
-		# 	pass
-
-
-
-	# if len(phone_number) == 11:
-	# 	if(phone_number[0] == '8'):
-	# 		phone_number = '7' + phone_number[:0] + phone_number[1:]
-	# 	markup = types.InlineKeyboardMarkup()
-	# 	btn_my_site = types.InlineKeyboardButton('Открыть чат WhatsApp', 'https://api.whatsapp.com/send?phone='+phone_number)
-	# 	markup.add(btn_my_site)
-	# 	btn_my_site = types.InlineKeyboardButton('Открыть чат Telegram', 'https://t.me/+'+phone_number)
-	# 	markup.add(btn_my_site)
-	# 	try:
-	# 		bot.send_message(message.chat.id, "Нажмите на кнопку для открытия чата (созданно в боте @whatsapp_chat_by_phone_bot)", reply_markup = markup)			
-	# 	except:
-	# 		pass
-	# else:
-	# 	try:
-	# 		bot.send_message(message.chat.id, "<b>Номер не верный. Введите ещё раз!</b><i> Пример формата номера: 79XXXXXXXXX</i>", parse_mode='html')
-	# 	except:
-	# 		pass
 
 bot.polling()
